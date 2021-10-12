@@ -1,0 +1,17 @@
+[package]
+name = "midi_keyboard"
+version = "0.1.0"
+description = """
+Easy-to-use tool to convert midi input to keyboard input.
+Made specifically for use with Final Fantasy XIV as it's a PITA to press Shift when crossing octave boundaries.
+For use on Linux through Proton.
+"""
+authors = ["Patrick Zacharias"]
+edition = "2018"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+keyboards = ["evdev"]
+
+[dependencies]
+anyhow = "1.0.44"
+evdev = "0.11.1"
