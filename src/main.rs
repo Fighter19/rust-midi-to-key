@@ -2,11 +2,58 @@ use evdev::{Device, Key};
 use anyhow::{Result};
 
 use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent};
+use std::iter::Map;
 use std::thread::sleep;
 use std::time::Duration;
 use std::io::{stdin, stdout, Write};
 
 use midir::{MidiInput, Ignore};
+
+struct KeyboardMsg {
+    is_press: bool,
+    button_to_press: u8,
+    press_shift: bool
+}
+
+fn receive_midi_msg_for_device(device: evdev::uinput::VirtualDevice, stamp: u64, message: &[u8]) {
+    if(message[0] == 144) {
+        // 75 = D#5
+        // 72 => C5
+        // 72-12 => 60 => C4
+        let octave: u8 = message[1] / 12;
+        let note: u8 = message[1] % 12;
+
+        let msg = KeyboardMsg {
+            is_press: message[2] >= 50,
+            button_to_press: note,
+            press_shift: (message[1] >= 72)
+        };
+        generate_button_press(device, msg);
+    }
+}
+
+const button_lut: [evdev::Key; 12] = [
+    Key::KEY_Q,
+    Key::KEY_2,
+    Key::KEY_W,
+    Key::KEY_3,
+    Key::KEY_E,
+    Key::KEY_4,
+    Key::KEY_R,
+    Key::KEY_5,
+    Key::KEY_T,
+    Key::KEY_6,
+    Key::KEY_Y,
+    Key::KEY_7
+];
+
+fn generate_button_press(mut device: evdev::uinput::VirtualDevice, keyboard_msg: KeyboardMsg) {
+    //println!("Pressed button: {}", keyboard_msg.button_to_press);
+    //println!("Would press button: {}", button_lut[keyboard_msg.button_to_press as usize]);
+    let type_ = EventType::KEY;
+    let press_event = InputEvent::new(type_, button_lut[keyboard_msg.button_to_press as usize].code(), keyboard_msg.is_press as i32);
+    device.emit(&[press_event]).unwrap();
+}
 
 fn main() -> Result<()> {
     let device = Device::open("/dev/input/event9")?;
@@ -84,6 +131,7 @@ fn test_midir() -> Result<()> {
     // _conn_in needs to be a named parameter, because it needs to be kept alive until the end of the scope
     let _conn_in = midi_in.connect(in_port, "midir-read-input", move |stamp, message, _| {
         println!("{}: {:?} (len = {})", stamp, message, message.len());
+        //receive_midi_msg(stamp, message);
     }, ());
 
     if _conn_in.is_err() {
