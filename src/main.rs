@@ -4,6 +4,9 @@ use anyhow::{Result};
 use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent};
 use std::thread::sleep;
 use std::time::Duration;
+use std::io::{stdin, stdout, Write};
+
+use midir::{MidiInput, Ignore};
 
 fn main() -> Result<()> {
     let device = Device::open("/dev/input/event9")?;
@@ -43,5 +46,55 @@ fn test_create_device() -> Result<()> {
     device.emit(&[up_event]).unwrap();
     println!("Released.");
     sleep(Duration::from_secs(2));
+    Ok(())
+}
+
+#[test]
+fn test_midir() -> Result<()> {
+    let mut input = String::new();
+
+    let mut midi_in = MidiInput::new("midir reading input")?;
+    midi_in.ignore(Ignore::None);
+    
+    // Get an input port (read from console if multiple are available)
+    let in_ports = midi_in.ports();
+    let in_port = match in_ports.len() {
+        0 => return Err(anyhow::anyhow!("no input port found")),
+        1 => {
+            println!("Choosing the only available input port: {}", midi_in.port_name(&in_ports[0]).unwrap());
+            &in_ports[0]
+        },
+        _ => {
+            println!("\nAvailable input ports:");
+            for (i, p) in in_ports.iter().enumerate() {
+                println!("{}: {}", i, midi_in.port_name(p).unwrap());
+            }
+            print!("Please select input port: ");
+            stdout().flush()?;
+            let mut input = String::new();
+            stdin().read_line(&mut input)?;
+            in_ports.get(input.trim().parse::<usize>()?)
+                     .ok_or(anyhow::anyhow!("invalid input port selected"))?
+        }
+    };
+    
+    println!("\nOpening connection");
+    let in_port_name = midi_in.port_name(in_port)?;
+
+    // _conn_in needs to be a named parameter, because it needs to be kept alive until the end of the scope
+    let _conn_in = midi_in.connect(in_port, "midir-read-input", move |stamp, message, _| {
+        println!("{}: {:?} (len = {})", stamp, message, message.len());
+    }, ());
+
+    if _conn_in.is_err() {
+        println!("Failed to open MIDI Input connection");
+    }
+    
+    println!("Connection open, reading input from '{}' (press enter to exit) ...", in_port_name);
+
+    input.clear();
+    stdin().read_line(&mut input)?; // wait for next enter key press
+
+    println!("Closing connection");
     Ok(())
 }
