@@ -68,7 +68,8 @@ fn initialize_kbd_device() -> Result<evdev::uinput::VirtualDevice, std::io::Erro
     return device;
 }
 
-fn initialize_midi_device() -> Result<MidiInputConnection<()>> {
+fn initialize_midi_device<F, T: Send> (callback: F, data: T) -> Result<MidiInputConnection<T>>
+where F: FnMut(u64, &[u8], &mut T) + Send + 'static {
     let mut input = String::new();
 
     let mut midi_in = MidiInput::new("midir reading input")?;
@@ -100,10 +101,7 @@ fn initialize_midi_device() -> Result<MidiInputConnection<()>> {
     let in_port_name = midi_in.port_name(in_port)?;
 
     // _conn_in needs to be a named parameter, because it needs to be kept alive until the end of the scope
-    let _conn_in = midi_in.connect(in_port, "midir-read-input", move |stamp, message, _| {
-        println!("{}: {:?} (len = {})", stamp, message, message.len());
-        //receive_midi_msg(stamp, message);
-    }, ());
+    let _conn_in = midi_in.connect(in_port, "midir-read-input", callback, data);
 
     if _conn_in.is_err() {
         println!("Failed to open MIDI Input connection");
@@ -126,7 +124,10 @@ fn initialize_midi_device() -> Result<MidiInputConnection<()>> {
 
 fn main() -> Result<()> {
     let mut device = initialize_kbd_device()?;
-    let midi_device = initialize_midi_device()?;
+    let midi_device = initialize_midi_device(move |stamp, message, _| {
+        println!("{}: {:?} (len = {})", stamp, message, message.len());
+        //receive_midi_msg(stamp, message);
+    }, ())?;
     let mut input = String::new();
     stdin().read_line(&mut input)?; // wait for next enter key press
 
@@ -165,7 +166,10 @@ fn test_create_device() -> Result<()> {
 
 #[test]
 fn test_midir() -> Result<()> {
-    let midi_device = initialize_midi_device()?;
+    let midi_device = initialize_midi_device(move |stamp, message, _| {
+        println!("{}: {:?} (len = {})", stamp, message, message.len());
+        //receive_midi_msg(stamp, message);
+    }, ())?;
 
     let mut input = String::new();
     stdin().read_line(&mut input)?; // wait for next enter key press
