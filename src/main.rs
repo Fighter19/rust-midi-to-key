@@ -16,7 +16,8 @@ struct KeyboardMsg {
 }
 
 fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp: u64, message: &[u8]) {
-    if(message[0] == 144) {
+    // 144 is normal press, 128 is deactivating key
+    if message[0] == 144 || message[0] == 128 {
         // 75 = D#5
         // 72 => C5
         // 72-12 => 60 => C4
@@ -24,7 +25,7 @@ fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp
         let note: u8 = message[1] % 12;
 
         let msg = KeyboardMsg {
-            is_press: message[2] >= 50,
+            is_press: (message[0] == 144 && message[2] >= 50),
             button_to_press: note,
             press_shift: (message[1] >= 72)
         };
@@ -38,13 +39,13 @@ const BUTTON_LUT: [evdev::Key; 12] = [
     Key::KEY_W,
     Key::KEY_3,
     Key::KEY_E,
-    Key::KEY_4,
     Key::KEY_R,
     Key::KEY_5,
     Key::KEY_T,
     Key::KEY_6,
     Key::KEY_Y,
-    Key::KEY_7
+    Key::KEY_7,
+    Key::KEY_U
 ];
 
 fn generate_button_press(device: &mut evdev::uinput::VirtualDevice, keyboard_msg: KeyboardMsg) {
