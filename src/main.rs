@@ -15,7 +15,7 @@ struct KeyboardMsg {
     press_shift: bool
 }
 
-fn receive_midi_msg_for_device(device: evdev::uinput::VirtualDevice, _stamp: u64, message: &[u8]) {
+fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp: u64, message: &[u8]) {
     if(message[0] == 144) {
         // 75 = D#5
         // 72 => C5
@@ -47,7 +47,7 @@ const BUTTON_LUT: [evdev::Key; 12] = [
     Key::KEY_7
 ];
 
-fn generate_button_press(mut device: evdev::uinput::VirtualDevice, keyboard_msg: KeyboardMsg) {
+fn generate_button_press(device: &mut evdev::uinput::VirtualDevice, keyboard_msg: KeyboardMsg) {
     //println!("Pressed button: {}", keyboard_msg.button_to_press);
     //println!("Would press button: {}", button_lut[keyboard_msg.button_to_press as usize]);
     let type_ = EventType::KEY;
@@ -123,11 +123,12 @@ where F: FnMut(u64, &[u8], &mut T) + Send + 'static {
 // }
 
 fn main() -> Result<()> {
-    let mut device = initialize_kbd_device()?;
-    let midi_device = initialize_midi_device(move |stamp, message, _| {
+    let device = initialize_kbd_device()?;
+    let midi_device = initialize_midi_device(move |stamp, message, device| {
         println!("{}: {:?} (len = {})", stamp, message, message.len());
+        receive_midi_msg_for_device(device, stamp, message);
         //receive_midi_msg(stamp, message);
-    }, ())?;
+    }, device)?;
     let mut input = String::new();
     stdin().read_line(&mut input)?; // wait for next enter key press
 
