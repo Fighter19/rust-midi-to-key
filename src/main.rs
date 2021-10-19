@@ -11,8 +11,7 @@ use midir::{ConnectError, Ignore, MidiInput, MidiInputConnection};
 
 struct KeyboardMsg {
     is_press: bool,
-    button_to_press: u8,
-    press_shift: bool
+    button_to_press: u8
 }
 
 fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp: u64, message: &[u8]) {
@@ -21,19 +20,34 @@ fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp
         // 75 = D#5
         // 72 => C5
         // 72-12 => 60 => C4
-        let octave: u8 = message[1] / 12;
-        let note: u8 = message[1] % 12;
+
+        // message[1] starts at C3
+        let mut note: u8 = message[1] - (60-12);
+        note = std::cmp::max(note, 0);
+        note = std::cmp::min(note, 12+12+11);
 
         let msg = KeyboardMsg {
             is_press: (message[0] == 144 && message[2] >= 50),
-            button_to_press: note,
-            press_shift: (message[1] >= 72)
+            button_to_press: note
         };
         generate_button_press(device, msg);
     }
 }
 
-const BUTTON_LUT: [evdev::Key; 12] = [
+const BUTTON_LUT: [evdev::Key; 12*3] = [
+    Key::KEY_Z,
+    Key::KEY_X,
+    Key::KEY_S,
+    Key::KEY_D,
+    Key::KEY_E,
+    Key::KEY_F,
+    Key::KEY_G,
+    Key::KEY_B,
+    Key::KEY_H,
+    Key::KEY_N,
+    Key::KEY_J,
+    Key::KEY_M,
+
     Key::KEY_Q,
     Key::KEY_2,
     Key::KEY_W,
@@ -45,7 +59,20 @@ const BUTTON_LUT: [evdev::Key; 12] = [
     Key::KEY_6,
     Key::KEY_Y,
     Key::KEY_7,
-    Key::KEY_U
+    Key::KEY_U,
+
+    Key::KEY_I,
+    Key::KEY_8,
+    Key::KEY_O,
+    Key::KEY_9,
+    Key::KEY_P,
+    Key::KEY_LEFTBRACE,
+    Key::KEY_0,
+    Key::KEY_RIGHTBRACE,
+    Key::KEY_MINUS,
+    Key::KEY_COMMA,
+    Key::KEY_DOT,
+    Key::KEY_1
 ];
 
 fn generate_button_press(device: &mut evdev::uinput::VirtualDevice, keyboard_msg: KeyboardMsg) {
@@ -53,10 +80,8 @@ fn generate_button_press(device: &mut evdev::uinput::VirtualDevice, keyboard_msg
     //println!("Would press button: {}", button_lut[keyboard_msg.button_to_press as usize]);
     let type_ = EventType::KEY;
 
-    let shift_event = InputEvent::new(type_, Key::KEY_LEFTSHIFT.code(), keyboard_msg.press_shift as i32);
-
     let press_event = InputEvent::new(type_, BUTTON_LUT[keyboard_msg.button_to_press as usize].code(), keyboard_msg.is_press as i32);
-    device.emit(&[shift_event,press_event]).unwrap();
+    device.emit(&[press_event]).unwrap();
 }
 
 fn initialize_kbd_device() -> Result<evdev::uinput::VirtualDevice, std::io::Error> {
@@ -64,8 +89,6 @@ fn initialize_kbd_device() -> Result<evdev::uinput::VirtualDevice, std::io::Erro
     for key in BUTTON_LUT.iter() {
         keys.insert(*key);
     }
-
-    keys.insert(Key::KEY_LEFTSHIFT);
 
     let mut device = VirtualDeviceBuilder::new()?
         .name("Fake Keyboard")
