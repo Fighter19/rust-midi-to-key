@@ -2,6 +2,7 @@ use evdev::{Device, Key};
 use anyhow::{Result};
 
 use evdev::{uinput::VirtualDeviceBuilder, AttributeSet, EventType, InputEvent};
+use std::convert::TryInto;
 use std::iter::Map;
 use std::thread::sleep;
 use std::time::Duration;
@@ -14,15 +15,23 @@ struct KeyboardMsg {
     button_to_press: u8
 }
 
-fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp: u64, message: &[u8]) {
+fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp: u64, message: &[u8], octave_pitch: i8) {
     // 144 is normal press, 128 is deactivating key
     if message[0] == 144 || message[0] == 128 {
         // 75 = D#5
         // 72 => C5
         // 72-12 => 60 => C4
 
+        let bound_pitch: u8 = match (60-12-octave_pitch * 12).try_into() {
+            Ok(value) => value,
+            Err(err) => {
+                println!("Value out of current pitch, clamping");
+                0
+            },
+        };
+
         // message[1] starts at C3
-        let mut note: u8 = message[1] - (60-12);
+        let mut note: u8 = message[1] - bound_pitch;
         note = std::cmp::max(note, 0);
         note = std::cmp::min(note, 12+12+11);
 
@@ -153,9 +162,10 @@ where F: FnMut(u64, &[u8], &mut T) + Send + 'static {
 
 fn main() -> Result<()> {
     let device = initialize_kbd_device()?;
+    let pitch = -1;
     let midi_device = initialize_midi_device(move |stamp, message, device| {
         println!("{}: {:?} (len = {})", stamp, message, message.len());
-        receive_midi_msg_for_device(device, stamp, message);
+        receive_midi_msg_for_device(device, stamp, message,pitch);
         //receive_midi_msg(stamp, message);
     }, device)?;
     let mut input = String::new();
