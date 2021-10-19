@@ -52,8 +52,11 @@ fn generate_button_press(device: &mut evdev::uinput::VirtualDevice, keyboard_msg
     //println!("Pressed button: {}", keyboard_msg.button_to_press);
     //println!("Would press button: {}", button_lut[keyboard_msg.button_to_press as usize]);
     let type_ = EventType::KEY;
+
+    let shift_event = InputEvent::new(type_, Key::KEY_LEFTSHIFT.code(), keyboard_msg.press_shift as i32);
+
     let press_event = InputEvent::new(type_, BUTTON_LUT[keyboard_msg.button_to_press as usize].code(), keyboard_msg.is_press as i32);
-    device.emit(&[press_event]).unwrap();
+    device.emit(&[shift_event,press_event]).unwrap();
 }
 
 fn initialize_kbd_device() -> Result<evdev::uinput::VirtualDevice, std::io::Error> {
@@ -61,6 +64,8 @@ fn initialize_kbd_device() -> Result<evdev::uinput::VirtualDevice, std::io::Erro
     for key in BUTTON_LUT.iter() {
         keys.insert(*key);
     }
+
+    keys.insert(Key::KEY_LEFTSHIFT);
 
     let mut device = VirtualDeviceBuilder::new()?
         .name("Fake Keyboard")
