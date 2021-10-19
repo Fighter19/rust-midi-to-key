@@ -22,14 +22,7 @@ fn receive_midi_msg_for_device(device: &mut evdev::uinput::VirtualDevice, _stamp
         // 72 => C5
         // 72-12 => 60 => C4
 
-        let bound_pitch: u8 = match (60-12-octave_pitch * 12).try_into() {
-            Ok(value) => value,
-            Err(err) => {
-                println!("Value out of current pitch, clamping");
-                0
-            },
-        };
-
+        let bound_pitch: u8 = (60-12-octave_pitch * 12).try_into().unwrap();
         // message[1] starts at C3
         let mut note: u8 = message[1] - bound_pitch;
         note = std::cmp::max(note, 0);
